@@ -1,0 +1,354 @@
+pacman::p_load(
+  rio,          # File import
+  here,         # File locator
+  skimr,        # get overview of data
+  tidyverse,    # data management + ggplot2 graphics, 
+  gtsummary,    # summary statistics and tests
+  forcats,
+  rstatix,      # statistics
+  corrr,        # correlation analayis for numeric variables
+  janitor,      # adding totals and percents to tables
+  flextable,     # converting tables to HTML
+  apyramid,     # a package dedicated to creating age pyramids
+  stringr,
+  dplyr,
+  readxl
+)
+
+
+df_animal <- import(here("MRSA.xlsx", sheet = "Animal"))
+
+df_animal <- read_excel("MRSA.xlsx", sheet = "Animal")
+
+#### I want to summarise the genes in the animal population
+###  This will show me all the genes, i have not classified the ones less than 5
+##
+
+# Remove missing values and split genes
+genes_list <- df_animal$`Complete MRSA genes detected` %>%
+  na.omit() %>%
+  strsplit(split = ",") %>%
+  unlist() %>%
+  trimws()  # Remove extra spaces
+#### I want to summarise the genes in the animal population
+# Count occurrences of each gene
+gene_counter2 <- table(genes_list) %>%
+  as.data.frame() %>%
+  arrange(desc(Freq))  # Sort by highest count
+
+# Rename columns
+colnames(gene_counter2) <- c("Gene", "Count")
+
+# Compute total gene count
+total_genes2 <- sum(gene_counter2$Count)
+
+# Calculate percentage
+gene_counter2 <- gene_counter2 %>%
+  mutate(Percentage = round((Count / total_genes) * 100, 1),
+         Display = paste0(Count, " (", Percentage, "%)"))
+
+# View results
+print(gene_counter)
+
+
+#### I want to summarise the genes in the animal population
+###  This will show me all the genes and others, i have classified the ones less than 5
+# Remove missing values and split genes
+genes_list <- df_animal$`Complete MRSA genes detected` %>%
+  na.omit() %>%
+  strsplit(split = ",") %>%
+  unlist() %>%
+  trimws()  # Remove extra spaces
+#### I want to summarise the genes in the animal population
+# Count occurrences of each gene
+gene_counter <- table(genes_list) %>%
+  as.data.frame() %>%
+  arrange(desc(Freq))  # Sort by highest count
+
+# Rename columns
+colnames(gene_counter) <- c("Gene", "Count")
+
+# Compute total gene count
+total_genes <- sum(gene_counter$Count)
+
+# Define threshold for "other genes"
+threshold <- 5
+
+# Filter genes below the threshold
+other_genes <- gene_counter[gene_counter$Count < threshold, "Gene"]
+
+# Calculate count for "other genes"
+other_genes_count <- sum(gene_counter$Count[gene_counter$Count < threshold])
+
+# Create data frame for "Other genes"
+other_genes_df <- data.frame(Gene = "Other genes", Count = other_genes_count, stringsAsFactors = FALSE) 
+
+# Combine with original data frame
+gene_counter <- rbind(gene_counter[gene_counter$Count >= threshold, ], other_genes_df)
+
+# Calculate percentage
+gene_counter <- gene_counter %>%
+  mutate(Percentage = round((Count / total_genes) * 100, 1),
+         Display = paste0(Count, " (", Percentage, "%)"))
+
+# View results
+print(gene_counter)
+
+
+
+####  I want to crosstab the genes according to their locations
+###
+##
+# Prepare the data
+df_genes <- df_animal %>%
+  select(Location, `Complete MRSA genes detected`) %>%
+  drop_na() %>%
+  separate_rows(`Complete MRSA genes detected`, sep = ",") %>%
+  mutate(`Complete MRSA genes detected` = str_trim(`Complete MRSA genes detected`)) 
+
+# Count occurrences by Location and Gene
+cross_tab <- df_genes %>%
+  group_by(Location, `Complete MRSA genes detected`) %>%
+  summarize(Count = n(), .groups = "drop") 
+
+# Define threshold for "Other genes"
+threshold <- 5
+
+# Group genes with low counts into "Other genes"
+cross_tab <- cross_tab %>%
+  mutate(Gene_Group = ifelse(Count < threshold, "Other genes", `Complete MRSA genes detected`)) %>%
+  group_by(Location, Gene_Group) %>%
+  summarize(Count = sum(Count), .groups = "drop") %>%
+  pivot_wider(names_from = Location, values_from = Count, values_fill = 0) 
+
+# View results
+print(cross_tab)
+
+
+# Count occurrences of each gene by location
+gene_counts <- df_genes %>%
+  group_by(Location, `Complete MRSA genes detected`) %>%
+  summarise(Count = n(), .groups = "drop")
+
+# Compute total gene occurrences per location
+total_counts_per_location <- gene_counts %>%
+  group_by(Location) %>%
+  summarise(Total = sum(Count))
+
+# Merge total counts to compute percentages
+gene_counts <- gene_counts %>%
+  left_join(total_counts_per_location, by = "Location") %>%
+  mutate(Percentage = round((Count / Total) * 100, 1),
+         Display = paste0(Count, " (", Percentage, "%)")) %>%
+  select(Location, `Complete MRSA genes detected`, Display)
+
+# Create cross-tabulation with count and percentage
+cross_tab <- gene_counts %>%
+  pivot_wider(names_from = Location, values_from = Display, values_fill = "0 (0%)")
+
+
+
+
+library(dplyr)
+library(tidyr)
+
+# Count occurrences of each gene by location
+gene_counts <- df_genes %>%
+  group_by(Location, `Complete MRSA genes detected`) %>%
+  summarise(Count = n(), .groups = "drop")
+
+# Compute total gene occurrences per location
+total_counts_per_location <- gene_counts %>%
+  group_by(Location) %>%
+  summarize(Total = sum(Count))
+
+# Define threshold for "Other genes"
+threshold <- 5
+
+# Group genes with low counts into "Other genes"
+gene_counts <- gene_counts %>%
+  mutate(Gene_Group = ifelse(Count < threshold, "Other genes", `Complete MRSA genes detected`)) %>%
+  group_by(Location, Gene_Group) %>%
+  summarize(Count = sum(Count), .groups = "drop")
+
+# Merge total counts to compute percentages
+gene_counts <- gene_counts %>%
+  left_join(total_counts_per_location, by = "Location") %>%
+  mutate(Percentage = round((Count / Total) * 100, 1),
+         Display = paste0(Count, " (", Percentage, "%)"))
+
+# Create cross-tabulation with count and percentage
+cross_tab <- gene_counts %>%
+  pivot_wider(names_from = Location, values_from = Display, values_fill = "0 (0%)")
+
+# View results
+print(cross_tab)
+
+
+
+
+
+# View the final cross-tab
+print(cross_tab)
+
+
+
+# Remove missing values and split genes
+df_genes <- df_animal %>%
+  select(Location, `Complete MRSA genes detected`) %>%
+  drop_na() %>%
+  separate_rows(`Complete MRSA genes detected`, sep = ",") %>%
+  mutate(`Complete MRSA genes detected` = str_trim(`Complete MRSA genes detected`)) # Remove spaces
+
+# Count occurrences by Location and Gene
+gene_counts <- df_genes %>%
+  group_by(Location, `Complete MRSA genes detected`) %>%
+  summarise(Count = n(), .groups = "drop")
+
+# Identify genes with total count < 5 and classify as "Other Genes"
+low_count_genes <- gene_counts %>%
+  group_by(`Complete MRSA genes detected`) %>%
+  summarise(Total = sum(Count)) %>%
+  filter(Total < 5) %>%
+  pull(`Complete MRSA genes detected`)
+
+# Replace low-count genes with "Other Genes"
+gene_counts <- gene_counts %>%
+  mutate(`Complete MRSA genes detected` = ifelse(`Complete MRSA genes detected` %in% low_count_genes, 
+                                                 "Other Genes", 
+                                                 `Complete MRSA genes detected`)) %>%
+  group_by(Location, `Complete MRSA genes detected`) %>%
+  summarise(Count = sum(Count), .groups = "drop")
+
+# Calculate percentages
+gene_counts <- gene_counts %>%
+  group_by(Location) %>%
+  mutate(Percentage = (Count / sum(Count)) * 100) %>%
+  ungroup()
+
+# Format as "Count (Percentage%)"
+gene_counts <- gene_counts %>%
+  mutate(Formatted = paste0(Count, " (", round(Percentage, 1), "%)")) %>%
+  select(-Count, -Percentage)
+
+# Pivot wider to create the cross-tab
+cross_tab <- gene_counts %>%
+  pivot_wider(names_from = Location, values_from = Formatted, values_fill = "0 (0%)")
+
+# View the cross-tabulation
+print(cross_tab)
+
+
+
+
+
+### Time to convert to word document tables
+## Thank goodness the gene counter and cross tab are both dataframe, so no need to convert the data type
+Animal_count  <- flextable(gene_counter) %>%
+  save_as_docx(gene_counter, path = "Gene counts for animals.docx")
+
+Animal_count2  <- flextable(gene_counter2) %>%
+  save_as_docx(gene_counter2, path = "Gene counts for animals22.docx")
+
+Animal_location_count  <- flextable(cross_tab) %>%
+  save_as_docx(cross_tab, path = "location of Gene counts for animals.docx")
+
+
+
+
+
+#### I want to summarise the genes in the animal population
+###  This will show me all the genes and others, i have classified the ones less than 5
+# Remove missing values and split genes
+genes_list <- df_animal$`Complete MRSA genes detected` %>%
+  na.omit() %>%
+  strsplit(split = ",") %>%
+  unlist() %>%
+  trimws()  # Remove extra spaces
+#### I want to summarise the genes in the animal population
+# Count occurrences of each gene
+gene_counter <- table(genes_list) %>%
+  as.data.frame() %>%
+  arrange(desc(Freq))  # Sort by highest count
+
+# Rename columns
+colnames(gene_counter) <- c("Gene", "Count")
+
+# Compute total gene count
+total_genes <- sum(gene_counter$Count)
+
+# Define threshold for "other genes"
+threshold <- 5
+
+# Filter genes below the threshold
+other_genes <- gene_counter[gene_counter$Count < threshold, "Gene"]
+
+# Calculate count for "other genes"
+other_genes_count <- sum(gene_counter$Count[gene_counter$Count < threshold])
+
+# Create data frame for "Other genes"
+other_genes_df <- data.frame(Gene = "Other genes", Count = other_genes_count, stringsAsFactors = FALSE) 
+
+# Combine with original data frame
+gene_counter <- rbind(gene_counter[gene_counter$Count >= threshold, ], other_genes_df)
+
+# Calculate percentage
+gene_counter <- gene_counter %>%
+  mutate(Percentage = round((Count / total_genes) * 100, 1),
+         Display = paste0(Count, " (", Percentage, "%)"))
+
+# View results
+print(gene_counter)
+
+
+
+####  I want to crosstab the mutation according to their locations
+###
+##
+#### I want to summarise the genes in the animal population
+###  This will show me all the genes and others, i have classified the ones less than 5
+# Remove missing values and split genes
+mutation_list <- df_animal$`Point mutation` %>%
+  na.omit() %>%
+  strsplit(split = ",") %>%
+  unlist() %>%
+  trimws()  # Remove extra spaces
+#### I want to summarise the genes in the animal population
+# Count occurrences of each gene
+muta_counter <- table(mutation_list) %>%
+  as.data.frame() %>%
+  arrange(desc(Freq))  # Sort by highest count
+
+# Rename columns
+colnames(muta_counter) <- c("Mutation", "Count")
+
+# Compute total gene count
+total_muta <- sum(muta_counter$Count)
+
+# Define threshold for "other genes"
+threshold <- 5
+
+# Filter genes below the threshold
+other_mutation <- muta_counter[muta_counter$Count < threshold, "Mutation"]
+
+# Calculate count for "other genes"
+other_muta_count <- sum(muta_counter$Count[muta_counter$Count < threshold])
+
+# Create data frame for "Other genes"
+other_muta_df <- data.frame(Mutation = "Other mutations", Count = other_muta_count, stringsAsFactors = FALSE) 
+
+# Combine with original data frame
+muta_counter <- rbind(muta_counter[muta_counter$Count >= threshold, ], other_muta_df)
+
+# Calculate percentage
+muta_counter <- muta_counter %>%
+  mutate(Percentage = round((Count / total_muta) * 100, 1),
+         Display = paste0(Count, " (", Percentage, "%)"))
+
+# View results
+print(muta_counter)
+
+
+## Thank goodness the gene counter and cross tab are both dataframe, so no need to convert the data type
+Animal_muta_count  <- flextable(muta_counter) %>%
+  save_as_docx(muta_counter, path = "mutation counts for animals.docx")
